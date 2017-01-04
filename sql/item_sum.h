@@ -887,14 +887,17 @@ public:
   ulonglong count;
   uint prec_increment;
   uint f_precision, f_scale, dec_bin_size;
+  Item_sum_std *under_sampling_rate_partner;
 
   Item_sum_avg(const POS &pos, Item *item_par, bool distinct) 
-    :Item_sum_sum(pos, item_par, distinct), count(0) 
+    :Item_sum_sum(pos, item_par, distinct), count(0), under_sampling_rate_partner(NULL)
   {}
 
   Item_sum_avg(THD *thd, Item_sum_avg *item)
     :Item_sum_sum(thd, item), count(item->count),
-    prec_increment(item->prec_increment) {}
+    prec_increment(item->prec_increment), 
+    under_sampling_rate_partner(item->under_sampling_rate_partner)
+  {}
 
   void fix_length_and_dec();
   enum Sumfunctype sum_func () const 
@@ -1032,14 +1035,17 @@ public:
 
 class Item_sum_std :public Item_sum_variance
 {
+  bool under_sample_rate_std;
+
   public:
   Item_sum_std(const POS &pos, Item *item_par, uint sample_arg)
-    :Item_sum_variance(pos, item_par, sample_arg)
+    :Item_sum_variance(pos, item_par, sample_arg), under_sample_rate_std(false)
   {}
 
   Item_sum_std(THD *thd, Item_sum_std *item)
-    :Item_sum_variance(thd, item)
+    :Item_sum_variance(thd, item), under_sample_rate_std(false)
     {}
+  void set_under_sample_rate() { under_sample_rate_std = true; }
   enum Sumfunctype sum_func () const { return STD_FUNC; }
   double val_real();
   Item *result_item(Field *field)

@@ -457,7 +457,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, YYLTYPE **c, ulong *yystacksize);
   Currently there are 159 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 155
+%expect 156
 
 /*
    Comments for TOKENS.
@@ -905,6 +905,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, YYLTYPE **c, ulong *yystacksize);
 %token  QUERY_SYM
 %token  QUICK
 %token  RANGE_SYM                     /* SQL-2003-R */
+%token  RATE_SYM		      /* Jarrid SQL Extension */
 %token  READS_SYM                     /* SQL-2003-R */
 %token  READ_ONLY_SYM
 %token  READ_SYM                      /* SQL-2003-N */
@@ -961,6 +962,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, YYLTYPE **c, ulong *yystacksize);
 %token  ROW_SYM                       /* SQL-2003-R */
 %token  ROW_COUNT_SYM                 /* SQL-2003-N */
 %token  RTREE_SYM
+%token  SAMPLING_SYM                  /* Jarrid SQL Extension */
 %token  SAVEPOINT_SYM                 /* SQL-2003-R */
 %token  SCHEDULE_SYM
 %token  SCHEMA_NAME_SYM               /* SQL-2003-N */
@@ -1071,6 +1073,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, YYLTYPE **c, ulong *yystacksize);
 %token  ULONGLONG_NUM
 %token  UNCOMMITTED_SYM               /* SQL-2003-N */
 %token  UNDEFINED_SYM
+%token  UNDER_SYM		      /* Jarrid SQL Extension */
 %token  UNDERSCORE_CHARSET
 %token  UNDOFILE_SYM
 %token  UNDO_BUFFER_SIZE_SYM
@@ -1242,6 +1245,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, YYLTYPE **c, ulong *yystacksize);
         opt_where_clause
         opt_having_clause
         opt_simple_limit
+        under_sampling_rate_clause
+        opt_under_sampling_rate_clause
 
 %type <item_list>
         when_list
@@ -9093,9 +9098,35 @@ table_expression:
           opt_limit_clause              /* #6 */
           opt_procedure_analyse_clause  /* #7 */
           opt_select_lock_type          /* #8 */
+          opt_under_sampling_rate_clause/* #9 */
           {
-            $$= NEW_PTN PT_table_expression($1, $2, $3, $4, $5, $6, $7, $8);
+            $$= NEW_PTN PT_table_expression($1, $2, $3, $4, $5, $6, $7, $8, $9);
           }
+        ;
+
+under_sampling_rate_clause:
+          UNDER_SYM SAMPLING_SYM RATE_SYM NUM_literal
+          {
+            LEX_STRING rand_name = to_lex_string(to_lex_cstring("RAND"));
+            Create_func *builder = find_native_function_builder(YYTHD, rand_name);
+            auto func = builder->create_func(YYTHD, rand_name, NULL);
+            Item *constant = $4->itemize(YYTHD, &$4);
+
+            double val = constant->val_real();
+            /* Determine how to report error */
+            if (val <= 0 || val > 1) 
+            {
+                my_syntax_error(ER(ER_UNDER_SAMPLING_RATE)); 
+                MYSQL_YYABORT;
+            }
+
+            $$ = comp_lt_creator(0)->(func, constant);
+          }
+        ;
+
+opt_under_sampling_rate_clause:
+          /* empty */ { $$= NULL; }
+        | under_sampling_rate_clause
         ;
 
 from_clause:

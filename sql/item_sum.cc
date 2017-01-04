@@ -1816,8 +1816,22 @@ String *Item_sum_avg::val_str(String *str)
   if (aggr)
     aggr->endup();
   if (hybrid_type == DECIMAL_RESULT)
-    return val_string_from_decimal(str);
-  return val_string_from_real(str);
+    str = val_string_from_decimal(str);
+  else
+    str = val_string_from_real(str);
+
+  if (under_sampling_rate_partner != NULL)
+  {
+    char first[] = " (STDEV: ";
+    str->append(first, strlen(first));
+
+    str->append(under_sampling_rate_partner->val_str());
+
+    char end[] = ")";
+    str->append(end, strlen(end));
+  }
+
+  return str;
 }
 
 

@@ -645,6 +645,7 @@ class PT_table_expression : public Parse_tree_node
   PT_limit_clause *opt_limit;
   PT_procedure_analyse *opt_procedure_analyse;
   Select_lock_type opt_select_lock_type;
+  Item *opt_under_sampling_rate;
 
 public:
   PT_table_expression(Parse_tree_node *opt_from_clause_arg,
@@ -654,7 +655,8 @@ public:
                       PT_order *opt_order_arg,
                       PT_limit_clause *opt_limit_arg,
                       PT_procedure_analyse *opt_procedure_analyse_arg,
-                      const Select_lock_type &opt_select_lock_type_arg)
+                      const Select_lock_type &opt_select_lock_type_arg,
+                      Item *opt_under_sampling_rate_arg)
    : opt_from_clause(opt_from_clause_arg),
      opt_where(opt_where_arg),
      opt_group(opt_group_arg),
@@ -662,7 +664,8 @@ public:
      opt_order(opt_order_arg),
      opt_limit(opt_limit_arg),
      opt_procedure_analyse(opt_procedure_analyse_arg),
-     opt_select_lock_type(opt_select_lock_type_arg)
+     opt_select_lock_type(opt_select_lock_type_arg),
+     opt_under_sampling_rate(opt_under_sampling_rate_arg)
     {}
 
   virtual bool contextualize(Parse_context *pc)
@@ -673,6 +676,18 @@ public:
         (opt_group != NULL && opt_group->contextualize(pc)) ||
         (opt_having != NULL && opt_having->itemize(pc, &opt_having)))
       return true;
+
+    if (opt_under_sampling_rate != NULL)
+    {
+        if (opt_where == NULL)
+        {
+            opt_where = opt_under_sampling_rate;
+        }
+        else
+        {
+            opt_where = new Item_cond_and(opt_where, opt_under_sampling_rate);
+        }
+    }
 
     pc->select->set_where_cond(opt_where);
     pc->select->set_having_cond(opt_having);
@@ -696,6 +711,8 @@ public:
     }
     return false;
   }
+
+  bool has_under_smpl_rate() { return opt_under_sampling_rate != NULL; }
 };
 
 
@@ -2169,6 +2186,8 @@ public:
     pc->select->parsing_place= CTX_NONE;
     return false;
   }
+
+    PT_item_list* get_item_list() { return item_list; }
 };
 
 
@@ -2187,6 +2206,7 @@ class PT_select_part2 : public Parse_tree_node
   PT_procedure_analyse *opt_procedure_analyse_clause;
   PT_into_destination *opt_into2;
   Select_lock_type opt_select_lock_type;
+  Item *opt_under_sampling_rate;
 
 public:
   PT_select_part2(
@@ -2200,7 +2220,8 @@ public:
     PT_limit_clause *opt_limit_clause_arg,
     PT_procedure_analyse *opt_procedure_analyse_clause_arg,
     PT_into_destination *opt_into2_arg,
-    const Select_lock_type &opt_select_lock_type_arg)
+    const Select_lock_type &opt_select_lock_type_arg,
+    Item *opt_under_sampling_rate_arg)
   : select_options_and_item_list(select_options_and_item_list_arg),
     opt_into1(opt_into1_arg),
     from_clause(from_clause_arg),
@@ -2211,7 +2232,8 @@ public:
     opt_limit_clause(opt_limit_clause_arg),
     opt_procedure_analyse_clause(opt_procedure_analyse_clause_arg),
     opt_into2(opt_into2_arg),
-    opt_select_lock_type(opt_select_lock_type_arg)
+    opt_select_lock_type(opt_select_lock_type_arg),
+    opt_under_sampling_rate(opt_under_sampling_rate_arg)
   {}
   explicit PT_select_part2(
     PT_select_options_and_item_list *select_options_and_item_list_arg)
@@ -2225,7 +2247,8 @@ public:
     opt_limit_clause(NULL),
     opt_procedure_analyse_clause(NULL),
     opt_into2(NULL),
-    opt_select_lock_type()
+    opt_select_lock_type(),
+    opt_under_sampling_rate(NULL)
   {}
 
   virtual bool contextualize(Parse_context *pc)
@@ -2243,6 +2266,34 @@ public:
         (opt_having_clause != NULL &&
          opt_having_clause->itemize(pc, &opt_having_clause)))
       return true;
+
+    if (opt_under_sampling_rate != NULL)
+    {
+        if (opt_where == NULL)
+        {
+            opt_where = opt_under_sampling_rate;
+        }
+        else
+        {
+            opt_where = new Item_cond_and(opt_where, opt_under_sampling_rate);
+        }
+
+        /* Place a standard deviation call after each average call, if they exist */
+        List<Item> val = select_options_and_item_list->get_item_list()->value;
+        List_iterator<Item> it(val);
+        Item *item;
+        while ((item= it++))
+        {
+            if (dynamic_cast<Item_sum_avg *>(item) != NULL)
+            {
+                Item *std_arg = item->get_arg(0); 
+                Item *std_func = new Item_sum_std(POS(), std_arg, 0);
+		item->under_sampling_rate_partner = std_func;
+                
+                it.after(std_func);
+            }
+        }
+    }
 
     pc->select->set_where_cond(opt_where_clause);
     pc->select->set_having_cond(opt_having_clause);
