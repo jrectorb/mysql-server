@@ -1822,10 +1822,15 @@ String *Item_sum_avg::val_str(String *str)
 
   if (under_sampling_rate_partner != NULL)
   {
+    String prev_val = *str;
+    str = under_sampling_rate_partner->val_str(str);
+    String arg = *str;
+    *str = prev_val;
+
     char first[] = " (STDEV: ";
     str->append(first, strlen(first));
 
-    str->append(under_sampling_rate_partner->val_str());
+    str->append(arg);
 
     char end[] = ")";
     str->append(end, strlen(end));

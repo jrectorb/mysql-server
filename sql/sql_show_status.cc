@@ -186,7 +186,8 @@ build_query(const POS &pos,
                                                            NULL,
                                                            NULL,
                                                            NULL,
-                                                           lock_type);
+                                                           lock_type,
+                                                           NULL);
 
   /* ... FROM (SELECT ...) ... */
   PT_table_factor_select_sym *table_factor_select_sym;
@@ -280,7 +281,8 @@ build_query(const POS &pos,
                                                     NULL, /* opt_limit_clause */
                                                     NULL, /* opt_procedure_analyse_clause */
                                                     NULL, /* opt_into */
-                                                    lock_type /* opt_select_lock_type */);
+                                                    lock_type, /* opt_select_lock_type */
+                                                    NULL  /* opt_under_sampling_rate_clause*/);
   if (select_part2 == NULL)
     return NULL;
 

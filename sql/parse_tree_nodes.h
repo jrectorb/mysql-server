@@ -25,6 +25,8 @@
 #include "sql_parse.h"               // add_join_natural
 #include "sql_update.h"              // Sql_cmd_update
 #include "sql_admin.h"               // Sql_cmd_shutdown etc.
+#include "item_sum.h"                // Item_sum_avg etc.
+#include "item_cmpfunc.h"            // Item_cond_and
 
 
 template<enum_parsing_context Context> class PTI_context;
@@ -2269,26 +2271,27 @@ public:
 
     if (opt_under_sampling_rate != NULL)
     {
-        if (opt_where == NULL)
+        if (opt_where_clause == NULL)
         {
-            opt_where = opt_under_sampling_rate;
+            opt_where_clause = opt_under_sampling_rate;
         }
         else
         {
-            opt_where = new Item_cond_and(opt_where, opt_under_sampling_rate);
+            opt_where_clause = new Item_cond_and(opt_where_clause, opt_under_sampling_rate);
         }
 
         /* Place a standard deviation call after each average call, if they exist */
         List<Item> val = select_options_and_item_list->get_item_list()->value;
         List_iterator<Item> it(val);
         Item *item;
+        Item_sum_avg *avg;
         while ((item= it++))
         {
-            if (dynamic_cast<Item_sum_avg *>(item) != NULL)
+            if ((avg= dynamic_cast<Item_sum_avg *>(item)) != NULL)
             {
-                Item *std_arg = item->get_arg(0); 
-                Item *std_func = new Item_sum_std(POS(), std_arg, 0);
-		item->under_sampling_rate_partner = std_func;
+                Item *std_arg = avg->get_arg(0); 
+                Item_sum_std *std_func = new Item_sum_std(POS(), std_arg, 0);
+	        	avg->under_sampling_rate_partner = std_func;
                 
                 it.after(std_func);
             }

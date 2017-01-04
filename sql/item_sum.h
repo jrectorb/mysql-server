@@ -881,6 +881,9 @@ public:
 };
 
 
+class Item_sum_std;
+
+
 class Item_sum_avg :public Item_sum_sum
 {
 public:
@@ -1015,7 +1018,6 @@ public:
   }
 };
 
-class Item_sum_std;
 
 class Item_std_field :public Item_variance_field
 {
@@ -1048,6 +1050,13 @@ class Item_sum_std :public Item_sum_variance
   void set_under_sample_rate() { under_sample_rate_std = true; }
   enum Sumfunctype sum_func () const { return STD_FUNC; }
   double val_real();
+  String *val_str(String *str) 
+  { 
+      if (under_sample_rate_std == true)
+          return str;
+      else
+          return Item_sum_num::val_str(str);
+  }
   Item *result_item(Field *field)
     { return new Item_std_field(this); }
   const char *func_name() const { return "std("; }

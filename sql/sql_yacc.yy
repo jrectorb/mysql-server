@@ -9039,12 +9039,12 @@ select_part2:
           opt_select_lock_type
           {
             $$= NEW_PTN PT_select_part2($1, NULL, NULL, NULL, NULL, NULL,
-                                        $2, $3, NULL, NULL, $4);
+                                        $2, $3, NULL, NULL, $4, NULL);
           }
         | select_options_and_item_list into opt_select_lock_type
           {
             $$= NEW_PTN PT_select_part2($1, $2, NULL, NULL, NULL, NULL, NULL,
-                                        NULL, NULL, NULL, $3);
+                                        NULL, NULL, NULL, $3, NULL);
           }
         | select_options_and_item_list  /* #1 */
           opt_into                      /* #2 */
@@ -9057,6 +9057,7 @@ select_part2:
           opt_procedure_analyse_clause  /* #9 */
           opt_into                      /* #10 */
           opt_select_lock_type          /* #11 */
+          opt_under_sampling_rate_clause/* #12 */
           {
             if ($2 && $10)
             {
@@ -9070,8 +9071,8 @@ select_part2:
               my_error(ER_WRONG_USAGE, MYF(0), "PROCEDURE", "INTO");
               MYSQL_YYABORT;
             }
-            $$= NEW_PTN PT_select_part2($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                                        $11);
+            $$= NEW_PTN PT_select_part2($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
+                                        $11, $12);
           }
         ;
 
@@ -9107,20 +9108,21 @@ table_expression:
 under_sampling_rate_clause:
           UNDER_SYM SAMPLING_SYM RATE_SYM NUM_literal
           {
+            Item *constant = NULL;
             LEX_STRING rand_name = to_lex_string(to_lex_cstring("RAND"));
             Create_func *builder = find_native_function_builder(YYTHD, rand_name);
-            auto func = builder->create_func(YYTHD, rand_name, NULL);
-            Item *constant = $4->itemize(YYTHD, &$4);
+            Item *func = builder->create_func(YYTHD, rand_name, NULL);
+            ITEMIZE(constant, &$4);
 
             double val = constant->val_real();
             /* Determine how to report error */
             if (val <= 0 || val > 1) 
             {
-                my_syntax_error(ER(ER_UNDER_SAMPLING_RATE)); 
+                my_syntax_error(ER(ER_UNDER_SAMPLING_RATE_INVALID_VALUE)); 
                 MYSQL_YYABORT;
             }
 
-            $$ = comp_lt_creator(0)->(func, constant);
+            $$ = comp_lt_creator(0)->create(func, constant);
           }
         ;
 
